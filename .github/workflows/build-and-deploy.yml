@@ -29,10 +29,11 @@ jobs:
               podman build -f Containerfile --tag ghcr.io/bshephar/fedora-bootc:rawhide-silverblue --build-arg=FEDORA_DE=silverblue
               podman push ghcr.io/bshephar/fedora-bootc:rawhide-silverblue
 
-          - name: "Build Kinoite Image"
+          - name: 'Build k8s image'
             run: |
-              podman build -f Containerfile --tag ghcr.io/bshephar/fedora-bootc:rawhide-kinoite --build-arg=FEDORA_DE=kinoite
-              podman push ghcr.io/bshephar/fedora-bootc:rawhide-kinoite
+              podman build -f ./k8s/Containerfile --tag ghcr.io/bshephar/fedora-k8s-bootc:stable
+              podman push ghcr.io/bshephar/fedora-k8s-bootc:stable
+              
 
 
 
