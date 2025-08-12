@@ -10,8 +10,6 @@ RUN curl -s -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable
 RUN dnf remove -y firefox tcl
 
 RUN dnf in -y alacritty \
-              fedpkg \
-              rust \
               gdb \
               glib \
               krb5-workstation \
@@ -26,13 +24,9 @@ RUN dnf in -y alacritty \
               qemu \
               qemu-kvm \
               ripgrep \
-              tailscale \
               tmux \
-	      tox \
               virt-install \
-              waybar \
               zsh \
               tailscale && \
 
     dnf clean all && \
-    systemctl set-default graphical.target 
