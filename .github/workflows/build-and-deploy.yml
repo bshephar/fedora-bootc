@@ -35,5 +35,9 @@ jobs:
               podman push ghcr.io/bshephar/fedora-k8s-bootc:stable
               
 
+          - name: 'Build Silverblue Image - aarch64'
+            run: |
+              podman build --platform linux/arm64 -f Containerfile --tag ghcr.io/bshephar/fedora-bootc-m:rawhide-silverblue --build-arg=FEDORA_DE=silverblue
+              podman push ghcr.io/bshephar/fedora-bootc:rawhide-silverblue
 
 
