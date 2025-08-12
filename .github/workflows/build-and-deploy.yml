@@ -26,7 +26,7 @@ jobs:
 
           - name: 'Build Silverblue Image'
             run: |
-              podman build -f Containerfile --tag ghcr.io/bshephar/fedora-bootc:rawhide-silverblue --build-arg=FEDORA_DE=silverblue
+              podman build --platform linux/amd64,linux/arm64 -f Containerfile --tag ghcr.io/bshephar/fedora-bootc:rawhide-silverblue --build-arg=FEDORA_DE=silverblue
               podman push ghcr.io/bshephar/fedora-bootc:rawhide-silverblue
 
           - name: 'Build k8s image'
