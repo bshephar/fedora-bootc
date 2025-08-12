@@ -29,4 +29,4 @@ RUN dnf in -y alacritty \
               zsh \
               tailscale && \
 
-    dnf clean all && \
+    dnf clean all
