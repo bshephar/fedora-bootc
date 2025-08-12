@@ -4,15 +4,11 @@ FROM quay.io/fedora/fedora-coreos:${FEDORA_MAJOR_VERSION}
 
 RUN curl -s -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/centos/9/tailscale.repo
 
-RUN cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-iptables = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward = 1
-EOF
+COPY k8s.conf /etc/sysctl.d/k8s.conf
 
 RUN dnf in -y kubernetes1.33 kubernetes1.33-kubeadm kubernetes1.33-client \
-              crio \
-	      containernetworking-plugins \
-              tailscale && \
+	crio \
+	containernetworking-plugins \
+	tailscale && \
 
-    dnf clean all
+	dnf clean all
