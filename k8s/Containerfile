@@ -10,5 +10,7 @@ COPY k8s-mod.conf /etc/modules-load.d/k8s.conf
 RUN dnf in -y kubernetes1.33 kubernetes1.33-kubeadm kubernetes1.33-client \
 	crio \
 	containernetworking-plugins \
+	haproxy \
+	keepalived \
 	tailscale && \
 	dnf clean all
