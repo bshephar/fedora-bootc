@@ -6,6 +6,8 @@ RUN curl -s -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable
 
 COPY k8s.conf /etc/sysctl.d/k8s.conf
 COPY k8s-mod.conf /etc/modules-load.d/k8s.conf
+COPY bootc-fetch-apply-updates.service /usr/lib/systemd/system/bootc-fetch-apply-updates.service
+COPY bootc-fetch-apply-updates.timer /usr/lib/systemd/system/bootc-fetch-apply-updates.timer
 
 RUN dnf in -y kubernetes1.33 kubernetes1.33-kubeadm kubernetes1.33-client \
 	crio \
@@ -13,4 +15,6 @@ RUN dnf in -y kubernetes1.33 kubernetes1.33-kubeadm kubernetes1.33-client \
 	haproxy \
 	keepalived \
 	tailscale && \
+
+	sudo systemctl enable bootc-fetch-apply-updates.timer && \
 	dnf clean all
