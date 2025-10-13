@@ -8,11 +8,13 @@ RUN curl -s -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable
 RUN dnf remove -y firefox tcl
 
 RUN dnf in -y alacritty \
-        autoconf \
+	autoconf \
+	cockpit \
+	cockpit-machines \
 	bison \
 	flex \
 	openssl-devel \
-        hyprland \
+	hyprland \
 	gdb \
 	glib \
 	libvirt \
