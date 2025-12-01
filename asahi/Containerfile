@@ -1,7 +1,6 @@
 ARG FEDORA_MAJOR_VERSION=42
 ARG FEDORA_DE=silverblue
 
-
 FROM quay.io/fedora-asahi-remix-atomic-desktops/${FEDORA_DE}:${FEDORA_MAJOR_VERSION}
 
 RUN curl -s -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/centos/9/tailscale.repo
@@ -11,6 +10,7 @@ RUN dnf remove -y firefox tcl
 RUN dnf in -y alacritty \
         autoconf \
 	bison \
+	clang \
 	flex \
 	openssl-devel \
         hyprland \
@@ -23,6 +23,7 @@ RUN dnf in -y alacritty \
 	llvm \
 	lua5.1-lpeg \
 	make \
+	mutt \
 	neovim \
 	ostree-devel \
 	pre-commit \
@@ -36,4 +37,5 @@ RUN dnf in -y alacritty \
 	waybar \
 	tailscale && \
 
+	dnf up -y && \
 	dnf clean all
