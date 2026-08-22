@@ -1,0 +1,48 @@
+
+ARG FEDORA_MAJOR_VERSION=rawhide
+ARG FEDORA_DE=silverblue
+
+FROM quay.io/fedora-asahi-remix-atomic-desktops/${FEDORA_DE}:${FEDORA_MAJOR_VERSION}
+
+RUN curl -s -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/centos/9/tailscale.repo
+
+RUN cat > /etc/yum.repos.d/nordvpn.repo <<'EOF'
+[nordvpn]
+name=nordvpn - Created by dnf5 config-manager
+enabled=1
+baseurl=https://repo.nordvpn.com/yum/nordvpn/centos/x86_64
+EOF
+
+RUN dnf in -y alacritty \
+        autoconf \
+	bison \
+	clang \
+	flex \
+	openssl-devel \
+        hyprland \
+	gdb \
+	glib \
+	libvirt \
+	libvirt-client \
+	libzstd-devel \
+	lld \
+	llvm \
+	lua5.1-lpeg \
+	make \
+	mutt \
+	neovim \
+	nordvpn \
+	ostree-devel \
+	pre-commit \
+	python3-pip \
+	qemu \
+	qemu-kvm \
+	ripgrep \
+	tmux \
+	virt-install \
+	zsh \
+	waybar \
+	tailscale && \
+
+	dnf up -y && \
+	dnf clean all
