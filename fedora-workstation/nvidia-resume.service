@@ -1,0 +1,12 @@
+[Unit]
+Description=NVIDIA system resume actions
+After=systemd-suspend.service systemd-hibernate.service systemd-suspend-then-hibernate.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-sleep.sh resume
+
+[Install]
+WantedBy=systemd-suspend.service
+WantedBy=systemd-hibernate.service
+WantedBy=systemd-suspend-then-hibernate.service

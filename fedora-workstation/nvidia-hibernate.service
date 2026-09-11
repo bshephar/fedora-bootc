@@ -1,0 +1,10 @@
+[Unit]
+Description=NVIDIA system hibernate actions
+Before=systemd-hibernate.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-sleep.sh hibernate
+
+[Install]
+WantedBy=systemd-hibernate.service

@@ -1,85 +1,78 @@
-# Installing a bootc Asahi Linux image on a M1 Macbook Pro
+# Installing a bootc Asahi Linux image
 
-**There be dragons here. Proceed only if willing to slay them**
+> **Warning:** This is an advanced, potentially destructive procedure. Back up any data you need before continuing.
 
 ## Preparation
 
-You can build an image using this Containerfile in this directory. Modify to your liking,
-or the base images are at: https://quay.io/organization/fedora-asahi-remix-atomic-desktops
+Build the image with the `Containerfile` in this directory, adapting it to your own system. Base images are available from <https://quay.io/organization/fedora-asahi-remix-atomic-desktops>.
 
-Remove anything you love and/or care about from the filesystem.
+Follow the upstream process described in <https://github.com/fedora-asahi-remix-atomic-desktops/images/issues/1#issuecomment-2651553233>.
 
+## Find the root kernel argument
 
-## Process I used
-I followed the steps here: https://github.com/fedora-asahi-remix-atomic-desktops/images/issues/1#issuecomment-2651553233
+After following the upstream preparation steps, identify the filesystem that will be the deployed root and use **your own** UUID. For example:
 
-To clarify points of ambiguity:
-
-### Get root karg
-
-Once you have finished the steps in the above Github comment. We can find the root karg option by verifying the root
-UUID with what the system has currently booted from:
-
-```
-    ❯ blkid --match-token LABEL=fedora
-/dev/nvme0n1p7: LABEL="fedora" UUID="4344a275-2eac-4b47-b7b5-5056ce6ed810" UUID_SUB="19bf063c-59e3-4968-a5ff-8b03615cda92" BLOCK_SIZE="4096" TYPE="btrfs" PARTUUID="f7efde10-a432-4ac4-bdc1-3385971e0ec2"
+```console
+$ blkid --match-token LABEL=fedora
+/dev/<root-partition>: LABEL="fedora" UUID="<ROOT_UUID>" UUID_SUB="<BTRFS_SUBVOLUME_UUID>" TYPE="btrfs" PARTUUID="<PARTITION_UUID>"
 ```
 
-We can see here, that my root partitions UUID is 4344a275-2eac-4b47-b7b5-5056ce6ed810. We can verify this matches what
-we currently have as the booted root from `/proc/cmdline`. 
+Confirm that the UUID matches the currently booted root:
 
-```
-    ❯ cat /proc/cmdline
-BOOT_IMAGE=(hd0,gpt6)/ostree/fedora-7896dd60f6dd4a914ac54dba0f3d25f0ed846108899d8b82d191c45422e81e6d/vmlinuz-6.14.8-400.asahi.fc42.aarch64+16k root=UUID=4344a275-2eac-4b47-b7b5-5056ce6ed810 rootflags=subvol=root rw ostree=/ostree/boot.1/fedora/7896dd60f6dd4a914ac54dba0f3d25f0ed846108899d8b82d191c45422e81e6d/0
-```
-
-So, with this information, we can build our `ostree container image deploy`:
-```
-    ostree container image deploy --imgref ostree-unverified-image:ghcr.io/bshephar/fedora-asahi-bootc:42 --target-imgref ostree-unverified-image:registry:ghcr.io/bshephar/fedora-asahi-bootc:42 --stateroot fedora --sysroot / --karg root=UUID="4344a275-2eac-4b47-b7b5-5056ce6ed810" --karg rw --karg rootflags=subvol=root
+```console
+$ cat /proc/cmdline
+BOOT_IMAGE=(<boot-device>)/ostree/<deployment>/vmlinuz-<kernel> root=UUID=<ROOT_UUID> rootflags=subvol=root rw ostree=<ostree-deployment>
 ```
 
-### Copy over files
+Use that UUID in the deployment command. Replace the image reference, stateroot, and kernel arguments to match your environment:
 
-```
-cp /etc/passwd /etc/shadow /etc/group /etc/gshadow /etc/fstab /etc/subuid /etc/subgid /ostree/deploy/fedora/deploy/36a29634947adb59e6d086139d36ff2a0cd16551a3254b92e0a109b0c425a425.0/etc/
-```
-
-Edit `/etc/passwd` in the new ostree deployment to change home directory to `/var/home` instead of `/home`
-
-```
-❯ grep myuser /ostree/deploy/fedora/deploy/36a29634947adb59e6d086139d36ff2a0cd16551a3254b92e0a109b0c425a425.0/etc/passwd
-myuser:x:1000:1000:myuser:/var/home/myuser:/usr/bin/zsh
-```
-
-Update `/etc/fstab` to mount `/home` at `/var/home` instead:
-```
-❯ grep home /ostree/deploy/fedora/deploy/36a29634947adb59e6d086139d36ff2a0cd16551a3254b92e0a109b0c425a425.0/etc/fstab
-UUID=4344a275-2eac-4b47-b7b5-5056ce6ed810 /var/home btrfs x-systemd.growfs,compress=zstd:1,subvol=home 0 0
+```console
+ostree container image deploy \
+  --imgref ostree-unverified-image:ghcr.io/<GHCR_OWNER>/fedora-asahi-bootc:<TAG> \
+  --target-imgref ostree-unverified-image:registry:ghcr.io/<GHCR_OWNER>/fedora-asahi-bootc:<TAG> \
+  --stateroot <STATEROOT> \
+  --sysroot / \
+  --karg root=UUID=<ROOT_UUID> \
+  --karg rw \
+  --karg rootflags=subvol=root
 ```
 
-Fix SELinux contexts:
-```
-chcon --reference=/etc/passwd /ostree/deploy/fedora/deploy/36a29634947adb59e6d086139d36ff2a0cd16551a3254b92e0a109b0c425a425.0/etc/passwd
-chcon --reference=/etc/fstab /ostree/deploy/fedora/deploy/36a29634947adb59e6d086139d36ff2a0cd16551a3254b92e0a109b0c425a425.0/etc/fstab
+## Copy required system configuration
+
+Copy the required account and mount configuration into the new deployment. Deployment paths are specific to the installed system, so substitute `<DEPLOYMENT_CHECKSUM>` with the result from your own deployment:
+
+```console
+DEPLOYMENT=/ostree/deploy/<STATEROOT>/deploy/<DEPLOYMENT_CHECKSUM>.0/etc
+sudo cp /etc/passwd /etc/shadow /etc/group /etc/gshadow /etc/fstab /etc/subuid /etc/subgid "$DEPLOYMENT/"
 ```
 
-## Reboot
+Update the copied account configuration as needed. For example, an account home can live below `/var/home`:
+
+```text
+<USERNAME>:x:<UID>:<GID>:<DESCRIPTION>:/var/home/<USERNAME>:/usr/bin/zsh
 ```
+
+If `/home` is mounted at `/var/home`, use your own root filesystem UUID in the copied `fstab`:
+
+```text
+UUID=<ROOT_UUID> /var/home btrfs x-systemd.growfs,compress=zstd:1,subvol=home 0 0
+```
+
+Restore SELinux contexts after copying files:
+
+```console
+sudo chcon --reference=/etc/passwd "$DEPLOYMENT/passwd"
+sudo chcon --reference=/etc/fstab "$DEPLOYMENT/fstab"
+```
+
+## Reboot and troubleshoot
+
+```console
 systemctl reboot
 ```
 
-If it drops you into an emergency shell, I'm truly sorry, but refer to dragon warning above. In my case,
-I missed the `root=` from my `--karg`. So I was able to fix this by editing the loader file in:
-```
-❯ rg 4344a /boot
-/boot/loader.1/entries/ostree-1.conf
-3:options root=UUID=4344a275-2eac-4b47-b7b5-5056ce6ed810 rootflags=subvol=root rw ostree=/ostree/boot.1/fedora/7896dd60f6dd4a914ac54dba0f3d25f0ed846108899d8b82d191c45422e81e6d/0
-```
+If the system drops into an emergency shell, verify the boot-loader entry contains the correct `root=UUID=<ROOT_UUID>` and OSTree deployment path for **your** installation. Then inspect the deployed image with:
 
-After fixing this, I was able to boot into the system and it all works nicely.
-```
-❯ sudo bootc status
-● Booted image: ghcr.io/bshephar/fedora-asahi-bootc:42
-        Digest: sha256:e84087ee1f421f05541851435ef2de01f6700d5c92d6ef64846e9e2be70d5413 (arm64)
-       Version: 42.20250820.0 (2025-08-20T23:57:23Z)
+```console
+sudo bootc status
 ```

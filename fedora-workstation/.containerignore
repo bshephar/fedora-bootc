@@ -1,0 +1,15 @@
+# Local agent state and credentials must not be sent as build context.
+.pi/
+auth
+.env
+.env.*
+*.secret
+*.token
+*.priv
+*.key
+*.pem
+*.der
+*.p12
+*.pfx
+*.auth
+*.esl

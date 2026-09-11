@@ -1,0 +1,11 @@
+[Unit]
+Description=NVIDIA actions for suspend-then-hibernate
+Before=systemd-suspend-then-hibernate.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-sleep.sh is-suspend-then-hibernate-supported
+ExecStart=/usr/bin/nvidia-sleep.sh suspend
+
+[Install]
+WantedBy=systemd-suspend-then-hibernate.service

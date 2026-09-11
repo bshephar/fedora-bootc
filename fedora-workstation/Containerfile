@@ -1,48 +1,279 @@
-
-ARG FEDORA_MAJOR_VERSION=rawhide
+ARG FEDORA_MAJOR_VERSION=44
 ARG FEDORA_DE=silverblue
 
-FROM quay.io/fedora-asahi-remix-atomic-desktops/${FEDORA_DE}:${FEDORA_MAJOR_VERSION}
+FROM quay.io/fedora-ostree-desktops/${FEDORA_DE}:${FEDORA_MAJOR_VERSION}
 
-RUN curl -s -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/centos/9/tailscale.repo
+RUN curl -fsSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/centos/9/tailscale.repo
+
+RUN dnf install -y \
+        https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm \
+        https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-44.noarch.rpm && \
+    dnf clean all
+
+RUN cat > /etc/yum.repos.d/asus-linux.repo <<'EOF'
+[asus-linux]
+name=Copr repo for asus-linux owned by lukenukem
+baseurl=https://download.copr.fedorainfracloud.org/results/lukenukem/asus-linux/fedora-$releasever-$basearch/
+type=rpm-md
+skip_if_unavailable=True
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/lukenukem/asus-linux/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+enabled_metadata=1
+EOF
+
+COPY nordvpn.asc /etc/pki/rpm-gpg/RPM-GPG-KEY-nordvpn
 
 RUN cat > /etc/yum.repos.d/nordvpn.repo <<'EOF'
 [nordvpn]
 name=nordvpn - Created by dnf5 config-manager
 enabled=1
 baseurl=https://repo.nordvpn.com/yum/nordvpn/centos/x86_64
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-nordvpn
 EOF
 
-RUN dnf in -y alacritty \
-        autoconf \
-	bison \
-	clang \
-	flex \
-	openssl-devel \
-        hyprland \
-	gdb \
-	glib \
-	libvirt \
-	libvirt-client \
-	libzstd-devel \
-	lld \
-	llvm \
-	lua5.1-lpeg \
-	make \
-	mutt \
-	neovim \
-	nordvpn \
-	ostree-devel \
-	pre-commit \
-	python3-pip \
-	qemu \
-	qemu-kvm \
-	ripgrep \
-	tmux \
-	virt-install \
-	zsh \
-	waybar \
-	tailscale && \
+# NordVPN's optional GUI package does not currently install cleanly in the
+# Silverblue filesystem layout, so install the CLI/daemon without weak deps.
+RUN dnf install -y --setopt=install_weak_deps=False nordvpn && \
+    dnf clean all
 
-	dnf up -y && \
-	dnf clean all
+RUN dnf install -y \
+        alacritty \
+        alsa-firmware \
+        apfs-fuse \
+        asusctl \
+        asusctl-rog-gui \
+        autoconf \
+        b4 \
+        bison \
+        black \
+        boost \
+        bpftrace \
+        clang \
+        clang-devel \
+        cmake \
+        delve \
+        dhcp-server \
+        dkms \
+        dnf-utils \
+        evtest \
+        expat-devel \
+        fastfetch \
+        fd-find \
+        fish \
+        flex \
+        fzf \
+        gcc \
+        gcc-c++ \
+        gdb \
+        gh \
+        git-credential-libsecret \
+        git-email \
+        git-filter-repo \
+        git-review \
+        glab \
+        glib \
+        gnome-shell-extension-appindicator \
+        gnome-tweaks \
+        gtk3-devel \
+        helm \
+        imv \
+        iotop-c \
+        kde-connect \
+        kubernetes1.34-client \
+        libavcodec-freeworld \
+        libbpf-devel \
+        libvirt \
+        libvirt-client \
+        libxkbcommon-devel \
+        libzstd-devel \
+        lld \
+        llvm \
+        lua5.1-lpeg \
+        make \
+        mutt \
+        nasm \
+        neovim \
+        ninja-build \
+        nmap \
+        nodejs22 \
+        openssl-devel \
+        ostree-devel \
+        perl-open \
+        pre-commit \
+        powertop \
+        python3-devel \
+        python3-jupyter-core \
+        python3-pip \
+        python3-pytest \
+        python3.10-devel \
+        qemu \
+        qemu-kvm \
+        qt5-qtwebkit \
+        rdfind \
+        ripgrep \
+        rofi \
+        rpmfusion-nonfree-release-tainted \
+        steam \
+        strace \
+        supergfxctl \
+        sway \
+        tailscale \
+        tigervnc \
+        timeshift \
+        tmux \
+        transmission-cli \
+        virt-install \
+        virt-viewer \
+        vlc \
+        vulkan-loader-devel \
+        vulkan-tools \
+        weechat \
+        wireshark-cli \
+        wmctrl \
+        yamllint \
+        yq \
+        yubikey-manager \
+        zsh && \
+    dnf clean all
+
+# Ensure the NVIDIA driver wins the race for the discrete GPU and that
+# both the Intel iGPU and NVIDIA dGPU drivers are available during early boot.
+RUN printf 'blacklist nouveau\noptions nouveau modeset=0\n' \
+        > /usr/lib/modprobe.d/nvidia-blacklist-nouveau.conf && \
+    mkdir -p /usr/lib/bootc/kargs.d && \
+    printf 'kargs = ["nvidia-drm.modeset=1", "rd.driver.blacklist=nouveau", "modprobe.blacklist=nouveau"]\n' \
+        > /usr/lib/bootc/kargs.d/01-nvidia.toml && \
+    printf 'force_drivers+=" i915 xe amdgpu nvidia nvidia-drm nvidia-modeset nvidia-uvm "\n' \
+        > /usr/lib/dracut/dracut.conf.d/99-nvidia.conf
+
+# Test A: retain NVIDIA 610.57.04, but restore the suspend integration used by
+# the previously working 610.43.03 .run installation. RPM Fusion patches the
+# open module to default NVreg_UseKernelSuspendNotifiers to 1; override it so
+# the NVIDIA systemd units explicitly quiesce and resume the driver through
+# /proc/driver/nvidia/suspend instead.
+COPY nvidia-sleep.sh /usr/bin/nvidia-sleep.sh
+COPY nvidia-suspend.service nvidia-resume.service nvidia-hibernate.service \
+    nvidia-suspend-then-hibernate.service /usr/lib/systemd/system/
+RUN set -eux; \
+    chmod 0755 /usr/bin/nvidia-sleep.sh; \
+    printf 'options nvidia NVreg_UseKernelSuspendNotifiers=0\n' \
+        > /usr/lib/modprobe.d/nvidia-suspend-procfs.conf; \
+    systemctl enable \
+        nvidia-suspend.service \
+        nvidia-resume.service \
+        nvidia-hibernate.service \
+        nvidia-suspend-then-hibernate.service
+
+# Build and sign NVIDIA modules for the exact kernel shipped in this image.
+# The signing certificate must already be enrolled in the target system's MOK database.
+# Supply the existing key pair as build secrets so the private key never enters
+# an image layer or the build context:
+#
+#   sudo podman build \
+#     --secret id=nvidia_mok_key,src=/etc/pki/akmods/private/private_key.priv \
+#     --secret id=nvidia_mok_cert,src=/etc/pki/akmods/certs/public_key.der \
+#     -t fedora-workstation:rawhide .
+#
+# A bootc update must contain a coherent kernel, kmods, userspace, and initramfs;
+# never rely on akmods rebuilding the driver on the deployed machine.
+RUN set -eux; \
+    set -- $(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' kernel-core); \
+    test "$#" -eq 1; \
+    KERNEL_V="$1"; \
+    test -d "/usr/lib/modules/${KERNEL_V}"; \
+    dnf install -y --setopt=install_weak_deps=False \
+        akmods \
+        "kernel-devel-${KERNEL_V}"; \
+    test "$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}' kernel-devel)" = "${KERNEL_V}"; \
+    # Fedora 44's akmodsbuild refuses to run as root, but akmods-ostree-post \
+    # still invokes it as root. Run only the build as the unprivileged akmods \
+    # user while retaining the script's root-only module extraction step. \
+    sed -i \
+        -e '/^create_tmpdir$/a chown akmods:akmods "${tmpdir}" "${tmpdir}results"' \
+        -e 's/^\([[:space:]]*\)akmodsbuild /\1runuser -u akmods -- akmodsbuild /' \
+        /usr/sbin/akmods-ostree-post; \
+    dnf clean all
+
+# Install the enrolled signing key before the NVIDIA package transaction so an
+# akmods transaction hook cannot build modules with an unintended key. Both
+# files are removed before this layer is committed; no key material is shipped.
+RUN --mount=type=secret,id=nvidia_mok_key,required=true \
+    --mount=type=secret,id=nvidia_mok_cert,required=true \
+    set -eux; \
+    cleanup_signing_key() { \
+        rm -f /etc/pki/akmods/private/private_key.priv \
+            /etc/pki/akmods/certs/public_key.der; \
+    }; \
+    trap cleanup_signing_key EXIT; \
+    set -- $(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' kernel-core); \
+    test "$#" -eq 1; \
+    KERNEL_V="$1"; \
+    KEY_PUBLIC_SHA256="$(openssl pkey -in /run/secrets/nvidia_mok_key \
+        -pubout -outform DER | sha256sum | cut -d' ' -f1)"; \
+    CERT_PUBLIC_SHA256="$(openssl x509 -inform DER \
+        -in /run/secrets/nvidia_mok_cert -pubkey -noout \
+        | openssl pkey -pubin -outform DER \
+        | sha256sum | cut -d' ' -f1)"; \
+    test "${KEY_PUBLIC_SHA256}" = "${CERT_PUBLIC_SHA256}"; \
+    install -d -o root -g akmods -m 0750 \
+        /etc/pki/akmods/private /etc/pki/akmods/certs; \
+    install -o root -g akmods -m 0640 /run/secrets/nvidia_mok_key \
+        /etc/pki/akmods/private/private_key.priv; \
+    install -o root -g akmods -m 0640 /run/secrets/nvidia_mok_cert \
+        /etc/pki/akmods/certs/public_key.der; \
+    dnf install -y --setopt=install_weak_deps=False \
+        akmod-nvidia \
+        nvidia-modprobe \
+        xorg-x11-drv-nvidia \
+        xorg-x11-drv-nvidia-cuda \
+        xorg-x11-drv-nvidia-libs.i686 \
+        xorg-x11-drv-nvidia-libs.x86_64; \
+    if ! akmods --force --kernels "${KERNEL_V}" --akmod nvidia; then \
+        find /var/cache/akmods/nvidia -name '*.failed.log' \
+            -type f -exec cat {} \; >&2; \
+        exit 1; \
+    fi; \
+    depmod -a "${KERNEL_V}"; \
+    EXPECTED_SIGNER="$(openssl x509 -inform DER \
+        -in /run/secrets/nvidia_mok_cert \
+        -noout -subject -nameopt RFC2253 | sed -n 's/^subject=CN=\([^,]*\).*$/\1/p')"; \
+    EXPECTED_SIG_KEY="$(openssl x509 -inform DER \
+        -in /run/secrets/nvidia_mok_cert -noout -serial \
+        | cut -d= -f2 | sed 's/../&:/g; s/:$//' | tr '[:lower:]' '[:upper:]')"; \
+    test -n "${EXPECTED_SIGNER}"; \
+    DRIVER_VERSION="$(rpm -q --queryformat '%{VERSION}' xorg-x11-drv-nvidia)"; \
+    MODULES='nvidia nvidia-modeset nvidia-drm nvidia-uvm'; \
+    if modinfo -k "${KERNEL_V}" nvidia-peermem >/dev/null 2>&1; then \
+        MODULES="${MODULES} nvidia-peermem"; \
+    fi; \
+    for module in ${MODULES}; do \
+        test "$(modinfo -k "${KERNEL_V}" -F version "${module}")" = "${DRIVER_VERSION}"; \
+        test "$(modinfo -k "${KERNEL_V}" -F vermagic "${module}" | cut -d' ' -f1)" = "${KERNEL_V}"; \
+        test "$(modinfo -k "${KERNEL_V}" -F signer "${module}")" = "${EXPECTED_SIGNER}"; \
+        test "$(modinfo -k "${KERNEL_V}" -F sig_key "${module}" | tr '[:lower:]' '[:upper:]')" = "${EXPECTED_SIG_KEY}"; \
+    done; \
+    # RPM Fusion carries both module implementations and selects the open one
+    # for modern GPUs. This image requires the open kernel module, so fail if a
+    # build unexpectedly produces the proprietary kernel module.
+    test "$(modinfo -k "${KERNEL_V}" -F license nvidia)" = 'Dual MIT/GPL'; \
+    test -u /usr/bin/nvidia-modprobe; \
+    dracut --no-hostonly --kver "${KERNEL_V}" --reproducible --zstd \
+        --add ostree -f "/usr/lib/modules/${KERNEL_V}/initramfs.img"; \
+    chmod 0600 "/usr/lib/modules/${KERNEL_V}/initramfs.img"; \
+    INITRAMFS="/usr/lib/modules/${KERNEL_V}/initramfs.img"; \
+    INITRAMFS_LIST="$(mktemp)"; \
+    lsinitrd "${INITRAMFS}" > "${INITRAMFS_LIST}"; \
+    lsinitrd -m "${INITRAMFS}" | grep -qx ostree; \
+    for module in nvidia nvidia-modeset nvidia-drm nvidia-uvm; do \
+        MODULE_FILE="$(basename "$(modinfo -k "${KERNEL_V}" -F filename "${module}")")"; \
+        grep -Fq "${MODULE_FILE}" "${INITRAMFS_LIST}"; \
+    done; \
+    grep -Fq 'nvidia-blacklist-nouveau.conf' "${INITRAMFS_LIST}"; \
+    rm -f "${INITRAMFS_LIST}"; \
+    cleanup_signing_key; \
+    trap - EXIT; \
+    test ! -e /etc/pki/akmods/private/private_key.priv; \
+    dnf clean all

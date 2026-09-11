@@ -1,0 +1,17 @@
+# Local coding-agent state and audit artifacts
+.pi/
+
+# Local secrets, credentials, and Secure Boot signing material
+.env
+.env.*
+*.secret
+*.token
+*.priv
+*.key
+*.pem
+*.der
+*.p12
+*.pfx
+*.auth
+*.esl
+secrets/
