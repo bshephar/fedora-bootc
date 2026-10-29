@@ -23,6 +23,21 @@ enabled=1
 enabled_metadata=1
 EOF
 
+# Fedora 44 does not ship the core Hyprland packages. This fork of
+# solopasha/hyprland still publishes Fedora 44 builds (not Rawhide packages).
+RUN cat > /etc/yum.repos.d/hyprland.repo <<'EOF'
+[hyprland]
+name=Copr repo for Hyprland owned by lionheartp
+baseurl=https://download.copr.fedorainfracloud.org/results/lionheartp/Hyprland/fedora-$releasever-$basearch/
+type=rpm-md
+skip_if_unavailable=False
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/lionheartp/Hyprland/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+enabled_metadata=1
+EOF
+
 COPY nordvpn.asc /etc/pki/rpm-gpg/RPM-GPG-KEY-nordvpn
 
 RUN cat > /etc/yum.repos.d/nordvpn.repo <<'EOF'
@@ -139,6 +154,39 @@ RUN dnf install -y \
         zsh && \
     dnf clean all
 
+# Runtime dependencies from ~/.config/hypr and ~/.config/waybar.
+# alacritty and rofi are installed above. Keep base-desktop tools explicit so
+# keybindings/autostart do not depend on incidental Silverblue dependencies.
+# mako provides notifications outside GNOME; the portal enables screen sharing.
+# Nerd Fonts, wallpaper images and the rofi theme remain user-managed in $HOME.
+RUN dnf install -y \
+        brightnessctl \
+        dbus-tools \
+        gnome-keyring \
+        grim \
+        gtk4-layer-shell \
+        hypridle \
+        hyprland \
+        hyprlock \
+        hyprpaper \
+        libnotify \
+        libva-nvidia-driver \
+        mako \
+        nautilus \
+        pavucontrol \
+        playerctl \
+        procps-ng \
+        psmisc \
+        pulseaudio-utils \
+        rsms-inter-fonts \
+        slurp \
+        waybar \
+        wireplumber \
+        wl-clipboard \
+        wlogout \
+        xdg-desktop-portal-hyprland && \
+    dnf clean all
+
 # Ensure the NVIDIA driver wins the race for the discrete GPU and that
 # both the Intel iGPU and NVIDIA dGPU drivers are available during early boot.
 RUN printf 'blacklist nouveau\noptions nouveau modeset=0\n' \
@@ -149,8 +197,8 @@ RUN printf 'blacklist nouveau\noptions nouveau modeset=0\n' \
     printf 'force_drivers+=" i915 xe amdgpu nvidia nvidia-drm nvidia-modeset nvidia-uvm "\n' \
         > /usr/lib/dracut/dracut.conf.d/99-nvidia.conf
 
-# Test A: retain NVIDIA 610.57.04, but restore the suspend integration used by
-# the previously working 610.43.03 .run installation. RPM Fusion patches the
+# Retain the suspend integration used by the previously working 610.43.03
+# .run installation while testing the locally built driver. RPM Fusion patches the
 # open module to default NVreg_UseKernelSuspendNotifiers to 1; override it so
 # the NVIDIA systemd units explicitly quiesce and resume the driver through
 # /proc/driver/nvidia/suspend instead.
@@ -173,9 +221,10 @@ RUN set -eux; \
 # an image layer or the build context:
 #
 #   sudo podman build \
-#     --secret id=nvidia_mok_key,src=/etc/pki/akmods/private/private_key.priv \
-#     --secret id=nvidia_mok_cert,src=/etc/pki/akmods/certs/public_key.der \
-#     -t fedora-workstation:rawhide .
+#     --build-context nvidia_rpms=/absolute/path/to/completed/repo \
+#     --secret id=nvidia_mok_key,src=/path/to/enrolled-named-key.priv \
+#     --secret id=nvidia_mok_cert,src=/path/to/enrolled-named-cert.der \
+#     -t ghcr.io/bshephar/fedora-bootc:44 .
 #
 # A bootc update must contain a coherent kernel, kmods, userspace, and initramfs;
 # never rely on akmods rebuilding the driver on the deployed machine.
@@ -200,9 +249,14 @@ RUN set -eux; \
 # Install the enrolled signing key before the NVIDIA package transaction so an
 # akmods transaction hook cannot build modules with an unintended key. Both
 # files are removed before this layer is committed; no key material is shipped.
-RUN --mount=type=secret,id=nvidia_mok_key,required=true \
+ARG NVIDIA_VERSION=615.71.09
+# Local RPMs are a read-only additional build context, never an image layer.
+# Only this local repository permits unsigned RPMs; upstream checks stay enabled.
+RUN --mount=type=bind,from=nvidia_rpms,source=.,target=/run/nvidia-rpms,ro \
+    --mount=type=secret,id=nvidia_mok_key,required=true \
     --mount=type=secret,id=nvidia_mok_cert,required=true \
     set -eux; \
+    test -f /run/nvidia-rpms/repodata/repomd.xml; \
     cleanup_signing_key() { \
         rm -f /etc/pki/akmods/private/private_key.priv \
             /etc/pki/akmods/certs/public_key.der; \
@@ -225,12 +279,21 @@ RUN --mount=type=secret,id=nvidia_mok_key,required=true \
     install -o root -g akmods -m 0640 /run/secrets/nvidia_mok_cert \
         /etc/pki/akmods/certs/public_key.der; \
     dnf install -y --setopt=install_weak_deps=False \
-        akmod-nvidia \
-        nvidia-modprobe \
-        xorg-x11-drv-nvidia \
-        xorg-x11-drv-nvidia-cuda \
-        xorg-x11-drv-nvidia-libs.i686 \
-        xorg-x11-drv-nvidia-libs.x86_64; \
+        --repofrompath=nvidia-local,file:///run/nvidia-rpms \
+        --setopt=nvidia-local.gpgcheck=0 \
+        --setopt=nvidia-local.repo_gpgcheck=0 \
+        "akmod-nvidia-${NVIDIA_VERSION}" \
+        "nvidia-modprobe-${NVIDIA_VERSION}" \
+        "nvidia-settings-${NVIDIA_VERSION}" \
+        "nvidia-persistenced-${NVIDIA_VERSION}" \
+        "xorg-x11-drv-nvidia-${NVIDIA_VERSION}" \
+        "xorg-x11-drv-nvidia-kmodsrc-${NVIDIA_VERSION}" \
+        "xorg-x11-drv-nvidia-cuda-${NVIDIA_VERSION}" \
+        "xorg-x11-drv-nvidia-cuda-libs-${NVIDIA_VERSION}-*.i686" \
+        "xorg-x11-drv-nvidia-cuda-libs-${NVIDIA_VERSION}-*.x86_64" \
+        "xorg-x11-drv-nvidia-libs-${NVIDIA_VERSION}-*.i686" \
+        "xorg-x11-drv-nvidia-libs-${NVIDIA_VERSION}-*.x86_64"; \
+    test "$(rpm -q --queryformat '%{VERSION}' xorg-x11-drv-nvidia)" = "${NVIDIA_VERSION}"; \
     if ! akmods --force --kernels "${KERNEL_V}" --akmod nvidia; then \
         find /var/cache/akmods/nvidia -name '*.failed.log' \
             -type f -exec cat {} \; >&2; \

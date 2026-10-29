@@ -1,5 +1,8 @@
 # Local agent state and credentials must not be sent as build context.
 .pi/
+# Local RPM sources, build roots/results are not image inputs by default.
+nvidia-rpms/work/
+**/__pycache__/
 auth
 .env
 .env.*
