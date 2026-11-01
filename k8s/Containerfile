@@ -14,6 +14,7 @@ RUN dnf in -y --enablerepo=updates-testing kubernetes1.34 kubernetes1.34-kubeadm
 	containernetworking-plugins \
 	haproxy \
 	keepalived \
+	nfs-utils \
 	tailscale && \
 
 	sudo systemctl enable bootc-fetch-apply-updates.timer && \
