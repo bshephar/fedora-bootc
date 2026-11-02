@@ -8,9 +8,11 @@ COPY k8s.conf /etc/sysctl.d/k8s.conf
 COPY k8s-mod.conf /etc/modules-load.d/k8s.conf
 COPY bootc-fetch-apply-updates.service /usr/lib/systemd/system/bootc-fetch-apply-updates.service
 COPY bootc-fetch-apply-updates.timer /usr/lib/systemd/system/bootc-fetch-apply-updates.timer
+COPY k8s.repo /etc/yum.repos.d/k8s.repo
 
-RUN dnf in -y --enablerepo=updates-testing kubernetes1.34 kubernetes1.34-kubeadm kubernetes1.34-client \
+RUN dnf in -y kubelet kubeadm kubectl \
 	crio \
+	cri-tools \
 	containernetworking-plugins \
 	haproxy \
 	keepalived \
