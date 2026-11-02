@@ -1,4 +1,4 @@
-ARG FEDORA_MAJOR_VERSION=44
+ARG FEDORA_MAJOR_VERSION=45
 ARG FEDORA_DE=silverblue
 
 FROM quay.io/fedora-ostree-desktops/${FEDORA_DE}:${FEDORA_MAJOR_VERSION}
@@ -6,8 +6,8 @@ FROM quay.io/fedora-ostree-desktops/${FEDORA_DE}:${FEDORA_MAJOR_VERSION}
 RUN curl -fsSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/centos/9/tailscale.repo
 
 RUN dnf install -y \
-        https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-44.noarch.rpm \
-        https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-44.noarch.rpm && \
+        https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-45.noarch.rpm \
+        https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-45.noarch.rpm && \
     dnf clean all
 
 RUN cat > /etc/yum.repos.d/asus-linux.repo <<'EOF'
